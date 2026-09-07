@@ -11,13 +11,21 @@ def parser(content: str) -> dict[str, Any]:
             continue
         key, value = (part.strip() for part in line.split("=", 1))
         if key in ("WIDTH", "HEIGHT"):
-            config_dict[key] = int(value)
+            try:
+                config_dict[key] = int(value)
+            except ValueError as error:
+                raise ValueError(f"Configuration error: '{key}' must be a valid integer, but got '{value}'") from error
         elif key in ("ENTRY", "EXIT"):
             config_dict[key] = tuple(int(coordinate) for coordinate in value.split(","))
         elif key == "PERFECT":
             config_dict[key] = value == "True"
         else:
             config_dict[key] = value
+
+    required_keys = ["WIDTH", "HEIGHT", "ENTRY", "EXIT", "PERFECT", "OUTPUT_FILE"]
+    for key in required_keys:
+        if key not in config_dict:
+            raise ValueError(f"Configuration error: Missing required field '{key}' in config file.")
 
     return config_dict
 
@@ -27,7 +35,6 @@ def input_checker(argv: list[str]) -> str:
         raise ValueError("Invalid format! correct format: python3 a_maze_ing.py <config_filename>")
 
     filename: str = argv[1]
-
     try:
         with open(filename, "r"):
             pass
