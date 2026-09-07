@@ -5,12 +5,6 @@ from typing import Any
 
 
 def parser(content: str) -> dict[str, Any]:
-    width: int
-    height: int
-    entry_coords: tuple[int]
-    exit_coords: tuple[int]
-    output_filename: str
-    is_perfect_maze: bool
     lines: list[str]
     key_and_value: list[str]
 
