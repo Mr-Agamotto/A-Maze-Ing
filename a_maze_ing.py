@@ -1,21 +1,15 @@
 from typing import Any
-
-
-
+import sys
 
 
 def parser(content: str) -> dict[str, Any]:
-    lines: list[str]
-    key_and_value: list[str]
-
     config_dict: dict[str, Any] = {}
-
     lines = content.split('\n')
 
     for line in lines:
-        key_and_value = line.split("=")
-        key = key_and_value[0]
-        value = key_and_value[1]
+        if not line.strip():
+            continue
+        key, value = (part.strip() for part in line.split("=", 1))
         if key in ("WIDTH", "HEIGHT"):
             config_dict[key] = int(value)
         elif key in ("ENTRY", "EXIT"):
@@ -28,13 +22,37 @@ def parser(content: str) -> dict[str, Any]:
     return config_dict
 
 
+def input_checker(argv: list[str]) -> str:
+    if len(argv) != 2:
+        raise ValueError("Invalid format! correct format: python3 a_maze_ing.py <config_filename>")
+
+    filename: str = argv[1]
+
+    try:
+        with open(filename, "r"):
+            pass
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"Configuration file not found: {filename}") from error
+    except PermissionError as error:
+        raise PermissionError(f"Permission denied: {filename}") from error
+
+    return filename
+    
 
 
 
 def main() -> None:
-    with open("config.txt", "r") as config_file_obj:
+    filename: str
+
+    try:
+        filename = input_checker(sys.argv)
+    except (ValueError, FileNotFoundError, PermissionError) as error:
+        print(error, file=sys.stderr)
+        return
+    with open(filename, "r") as config_file_obj:
         configs = config_file_obj.read()
         config_dict = parser(configs)
+        print(config_dict)
         
 
 if __name__ == "__main__":
