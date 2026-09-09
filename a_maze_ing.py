@@ -77,7 +77,7 @@ def main() -> None:
     maze.generate()
 
     print(f"seed used: {maze.seed!r}")
-    print(maze.render_ascii())
+    print(maze.render_ascii(color_logo=True))
     maze.write_to_file()
     print(f"\nAlso written to: {maze.output_filename}")
 

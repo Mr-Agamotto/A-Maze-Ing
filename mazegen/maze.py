@@ -292,24 +292,45 @@ class Maze:
 
         self._apply_border()
 
-    def render_ascii(self) -> str:
+    def render_ascii(self, color_logo: bool = False) -> str:
+        red = "\033[31m"
+        reset = "\033[0m"
+
+        def color_token(token: str, should_color: bool) -> str:
+            return red + token + reset if color_logo and should_color else token
+
         lines = []
         for y in range(self.height):
             top = ""
             side = ""
             for x in range(self.width):
                 cell = self.cell(x, y)
-                top += "+" + ("--" if cell.has_wall(NORTH) else "  ")
+                above_stamped = y > 0 and self.cell(x, y - 1).is_stamped
+                left_stamped = x > 0 and self.cell(x - 1, y).is_stamped
+                corner_stamped = cell.is_stamped or above_stamped or left_stamped
+                if x > 0:
+                    corner_stamped = corner_stamped or self.cell(x - 1, y - 1 if y > 0 else y).is_stamped
+                top += color_token("+", corner_stamped)
+                top += color_token("--" if cell.has_wall(NORTH) else "  ", cell.is_stamped or above_stamped)
                 marker = "S" if (x, y) == self.entry_coords else "E" if (x, y) == self.exit_coords else " "
-                side += ("|" if cell.has_wall(WEST) else " ") + marker + " "
-            lines.append(top + "+")
-            east_wall = "|" if self.cell(self.width - 1, y).has_wall(EAST) else " "
+                side += color_token(
+                    ("|" if cell.has_wall(WEST) else " ") + marker + " ",
+                    cell.is_stamped or left_stamped,
+                )
+            last_above_stamped = y > 0 and self.cell(self.width - 1, y - 1).is_stamped
+            lines.append(top + color_token("+", self.cell(self.width - 1, y).is_stamped or last_above_stamped))
+            last_cell = self.cell(self.width - 1, y)
+            east_wall = color_token(
+                "|" if last_cell.has_wall(EAST) else " ",
+                last_cell.is_stamped,
+            )
             lines.append(side + east_wall)
         bottom = "".join(
-            "+" + ("--" if self.cell(x, self.height - 1).has_wall(SOUTH) else "  ")
+            color_token("+", self.cell(x, self.height - 1).is_stamped or (x > 0 and self.cell(x - 1, self.height - 1).is_stamped))
+            + color_token("--" if self.cell(x, self.height - 1).has_wall(SOUTH) else "  ", self.cell(x, self.height - 1).is_stamped)
             for x in range(self.width)
         )
-        lines.append(bottom + "+")
+        lines.append(bottom + color_token("+", self.cell(self.width - 1, self.height - 1).is_stamped))
         return "\n".join(lines)
 
     def write_to_file(self) -> None:
