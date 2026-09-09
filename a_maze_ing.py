@@ -1,6 +1,8 @@
 from typing import Any
 import sys
 
+from mazegen.maze import Maze
+
 
 def parser(content: str) -> dict[str, Any]:
     config_dict: dict[str, Any] = {}
@@ -44,23 +46,41 @@ def input_checker(argv: list[str]) -> str:
         raise PermissionError(f"Permission denied: {filename}") from error
 
     return filename
-    
-
 
 
 def main() -> None:
     filename: str
 
     try:
-        filename = input_checker(sys.argv)
+        if len(sys.argv) not in (2, 3):
+            raise ValueError("Invalid format! correct format: python3 a_maze_ing.py <config_filename> [seed]")
+        filename = input_checker(sys.argv[:2])
     except (ValueError, FileNotFoundError, PermissionError) as error:
         print(error, file=sys.stderr)
         return
+
     with open(filename, "r") as config_file_obj:
-        configs = config_file_obj.read()
-        config_dict = parser(configs)
-        print(config_dict)
-        
+        config_dict = parser(config_file_obj.read())
+
+    seed = sys.argv[2] if len(sys.argv) == 3 else config_dict.get("SEED")
+
+    maze = Maze(
+        width=config_dict["WIDTH"],
+        height=config_dict["HEIGHT"],
+        entry_coords=tuple(config_dict["ENTRY"]),
+        exit_coords=tuple(config_dict["EXIT"]),
+        output_filename=config_dict.get("OUTPUT_FILE", "maze_output.txt"),
+        is_perfect_maze=config_dict.get("PERFECT", False),
+        seed=seed,
+    )
+
+    maze.generate()
+
+    print(f"seed used: {maze.seed!r}")
+    print(maze.render_ascii())
+    maze.write_to_file()
+    print(f"\nAlso written to: {maze.output_filename}")
+
 
 if __name__ == "__main__":
     main()
