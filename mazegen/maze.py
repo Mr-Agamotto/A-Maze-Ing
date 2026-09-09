@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+from collections import deque
 
 from mazegen.cell import Cell, NORTH, EAST, SOUTH, WEST, OPPOSITE, DELTA
 
@@ -205,17 +206,6 @@ class Maze:
                 if x == self.width - 1:
                     cell.add_wall(EAST)
 
-        for (x, y) in (self.entry_coords, self.exit_coords):
-            cell = self.cell(x, y)
-            if y == 0:
-                cell.remove_wall(NORTH)
-            if y == self.height - 1:
-                cell.remove_wall(SOUTH)
-            if x == 0:
-                cell.remove_wall(WEST)
-            if x == self.width - 1:
-                cell.remove_wall(EAST)
-
     def _all_internal_edges(self) -> list[tuple[tuple[int, int], tuple[int, int]]]:
         edges = []
         for x in range(self.width):
@@ -292,9 +282,48 @@ class Maze:
 
         self._apply_border()
 
-    def render_ascii(self, color_logo: bool = False) -> str:
+    def shortest_path_coords(self) -> list[tuple[int, int]]:
+        queue = deque([self.entry_coords])
+        visited = {self.entry_coords}
+        previous: dict[tuple[int, int], tuple[tuple[int, int], str] | None] = {self.entry_coords: None}
+
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) == self.exit_coords:
+                break
+
+            for direction in (NORTH, EAST, SOUTH, WEST):
+                nx, ny = self.neighbor_coords(x, y, direction)
+                if not self.in_bounds(nx, ny):
+                    continue
+                if self.cell(x, y).has_wall(direction):
+                    continue
+
+                neighbor = (nx, ny)
+                if neighbor in visited:
+                    continue
+
+                visited.add(neighbor)
+                previous[neighbor] = ((x, y), direction)
+                queue.append(neighbor)
+
+        if self.exit_coords not in previous:
+            return []
+
+        path: list[tuple[int, int]] = []
+        current = self.exit_coords
+        while previous[current] is not None:
+            path.append(current)
+            prev_cell, _ = previous[current]
+            current = prev_cell
+        path.append(self.entry_coords)
+        path.reverse()
+        return path
+
+    def render_ascii(self, color_logo: bool = False, show_path: bool = False) -> str:
         red = "\033[31m"
         reset = "\033[0m"
+        path_cells = set(self.shortest_path_coords()) if show_path else set()
 
         def color_token(token: str, should_color: bool) -> str:
             return red + token + reset if color_logo and should_color else token
@@ -312,7 +341,16 @@ class Maze:
                     corner_stamped = corner_stamped or self.cell(x - 1, y - 1 if y > 0 else y).is_stamped
                 top += color_token("+", corner_stamped)
                 top += color_token("--" if cell.has_wall(NORTH) else "  ", cell.is_stamped or above_stamped)
-                marker = "S" if (x, y) == self.entry_coords else "E" if (x, y) == self.exit_coords else " "
+
+                if (x, y) == self.entry_coords:
+                    marker = "S"
+                elif (x, y) == self.exit_coords:
+                    marker = "E"
+                elif show_path and (x, y) in path_cells:
+                    marker = "*"
+                else:
+                    marker = " "
+
                 side += color_token(
                     ("|" if cell.has_wall(WEST) else " ") + marker + " ",
                     cell.is_stamped or left_stamped,
@@ -333,6 +371,71 @@ class Maze:
         lines.append(bottom + color_token("+", self.cell(self.width - 1, self.height - 1).is_stamped))
         return "\n".join(lines)
 
+    def _cell_hex_code(self, x: int, y: int) -> str:
+        cell = self.cell(x, y)
+        value = 0
+        if cell.has_wall(NORTH):
+            value |= 1 << 0
+        if cell.has_wall(EAST):
+            value |= 1 << 1
+        if cell.has_wall(SOUTH):
+            value |= 1 << 2
+        if cell.has_wall(WEST):
+            value |= 1 << 3
+        return format(value, "X")
+
+    def _shortest_path(self) -> str:
+        queue = deque([self.entry_coords])
+        visited = {self.entry_coords}
+        previous: dict[tuple[int, int], tuple[tuple[int, int], str] | None] = {self.entry_coords: None}
+
+        while queue:
+            x, y = queue.popleft()
+            if (x, y) == self.exit_coords:
+                break
+
+            for direction in (NORTH, EAST, SOUTH, WEST):
+                nx, ny = self.neighbor_coords(x, y, direction)
+                if not self.in_bounds(nx, ny):
+                    continue
+                if self.cell(x, y).has_wall(direction):
+                    continue
+
+                neighbor = (nx, ny)
+                if neighbor in visited:
+                    continue
+
+                visited.add(neighbor)
+                previous[neighbor] = ((x, y), direction)
+                queue.append(neighbor)
+
+        if self.exit_coords not in previous:
+            return ""
+
+        path: list[str] = []
+        current = self.exit_coords
+        while previous[current] is not None:
+            prev_cell, direction = previous[current]
+            path.append(direction)
+            current = prev_cell
+
+        return "".join(reversed(path))
+
     def write_to_file(self) -> None:
+        rows = [
+            "".join(self._cell_hex_code(x, y) for x in range(self.width))
+            for y in range(self.height)
+        ]
+
+        entry_line = f"{self.entry_coords[0]}, {self.entry_coords[1]}"
+        exit_line = f"{self.exit_coords[0]}, {self.exit_coords[1]}"
+        path_line = self._shortest_path()
+
+        content = "\n".join(rows)
+        content += "\n\n"
+        content += f"{entry_line}\n"
+        content += f"{exit_line}\n"
+        content += f"{path_line}\n"
+
         with open(self.output_filename, "w") as file_obj:
-            file_obj.write(self.render_ascii())
+            file_obj.write(content)

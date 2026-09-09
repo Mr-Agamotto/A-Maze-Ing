@@ -55,6 +55,18 @@ def input_checker(argv: list[str]) -> str:
     return filename
 
 
+def build_maze(config_dict: dict[str, Any]) -> Maze:
+    return Maze(
+        width=config_dict["WIDTH"],
+        height=config_dict["HEIGHT"],
+        entry_coords=tuple(config_dict["ENTRY"]),
+        exit_coords=tuple(config_dict["EXIT"]),
+        output_filename=config_dict.get("OUTPUT_FILE", "maze_output.txt"),
+        is_perfect_maze=config_dict.get("PERFECT", False),
+        seed=config_dict.get("SEED"),
+    )
+
+
 def main() -> None:
     filename: str
 
@@ -69,24 +81,29 @@ def main() -> None:
     with open(filename, "r") as config_file_obj:
         config_dict = parser(config_file_obj.read())
 
-    seed = config_dict.get("SEED")
+    show_path = False
+    maze = build_maze(config_dict)
 
-    maze = Maze(
-        width=config_dict["WIDTH"],
-        height=config_dict["HEIGHT"],
-        entry_coords=tuple(config_dict["ENTRY"]),
-        exit_coords=tuple(config_dict["EXIT"]),
-        output_filename=config_dict.get("OUTPUT_FILE", "maze_output.txt"),
-        is_perfect_maze=config_dict.get("PERFECT", False),
-        seed=seed,
-    )
+    while True:
+        os.system("clear")
+        maze.generate()
+        print(f"seed used: {maze.seed!r}")
+        print(maze.render_ascii(color_logo=True, show_path=show_path))
+        maze.write_to_file()
 
-    maze.generate()
-
-    print(f"seed used: {maze.seed!r}")
-    print(maze.render_ascii(color_logo=True))
-    maze.write_to_file()
-    ops.menu()
+        choice = ops.menu()
+        if choice == "1":
+            maze = build_maze(config_dict)
+            show_path = False
+        elif choice == "2":
+            show_path = not show_path
+        elif choice == "3":
+            continue
+        elif choice == "4":
+            break
+        else:
+            print("Invalid choice. Please select 1-4.")
+            input("Press Enter to continue...")
 
 if __name__ == "__main__":
     main()
