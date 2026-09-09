@@ -81,29 +81,31 @@ def main() -> None:
     with open(filename, "r") as config_file_obj:
         config_dict = parser(config_file_obj.read())
 
-    show_path = False
     maze = build_maze(config_dict)
+    display_needed = True
 
     while True:
-        os.system("clear")
-        maze.generate()
-        print(f"seed used: {maze.seed!r}")
-        print(maze.render_ascii(color_logo=True, show_path=show_path))
-        maze.write_to_file()
+        if display_needed:
+            os.system("clear")
+            maze.generate()
+            print(f"seed used: {maze.seed!r}")
+            print(maze.render_ascii(color_logo=True))
+            maze.write_to_file()
+            display_needed = False
 
         choice = ops.menu()
-        if choice == "1":
+        if choice in ("1", "2", "3"):
             maze = build_maze(config_dict)
-            show_path = False
-        elif choice == "2":
-            show_path = not show_path
-        elif choice == "3":
-            continue
+            display_needed = True
         elif choice == "4":
             break
         else:
             print("Invalid choice. Please select 1-4.")
-            input("Press Enter to continue...")
+            try:
+                input("Press Enter to continue...")
+            except EOFError:
+                pass
+            display_needed = True
 
 if __name__ == "__main__":
     main()

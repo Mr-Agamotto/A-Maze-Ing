@@ -69,7 +69,7 @@ class Maze:
         raise ValueError(f"{a} and {b} are not adjacent cells.")
 
     _GLYPH_4 = [
-        [1, 0, 0, 1, 0],
+        [0, 0, 0, 0, 0],
         [1, 0, 0, 1, 0],
         [1, 0, 0, 1, 0],
         [1, 1, 1, 1, 1],
@@ -81,8 +81,8 @@ class Maze:
         [1, 1, 1, 1, 0],
         [0, 0, 0, 0, 1],
         [0, 0, 0, 0, 1],
-        [0, 1, 1, 1, 0],
-        [1, 0, 0, 0, 0],
+        [0, 0, 1, 1, 0],
+        [0, 1, 0, 0, 0],
         [1, 0, 0, 0, 0],
         [1, 1, 1, 1, 1],
     ]
@@ -93,7 +93,6 @@ class Maze:
         total_w = glyph_w * 2 + 1
 
         if self.width < total_w + 2 or self.height < glyph_h + 2:
-            print("Size too small to print the '42'")
             return
 
         start_x = (self.width - total_w) // 2
@@ -109,7 +108,9 @@ class Maze:
                         continue
                     if (x, y) in (self.entry_coords, self.exit_coords):
                         continue
-                    self.cell(x, y).is_stamped = True
+                    cell = self.cell(x, y)
+                    cell.is_stamped = True
+                    cell.walls = {NORTH: True, EAST: True, SOUTH: True, WEST: True}
 
     def _edge_open(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         direction = self._direction_between((x1, y1), (x2, y2))
@@ -238,7 +239,8 @@ class Maze:
             (self.width // 2, self.height // 2),
         ]
         for (x, y) in targets:
-            self.cell(x, y).is_stamped = False
+            if self.cell(x, y).is_stamped:
+                continue
             if self.cell(x, y).wall_count() == 4:
                 neighbors = self._usable_neighbors(x, y)
                 self.rng.shuffle(neighbors)
