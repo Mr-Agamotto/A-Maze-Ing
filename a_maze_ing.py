@@ -1,5 +1,8 @@
+import os
+os.system("clear")
 from typing import Any
 import sys
+import ops
 
 from mazegen.maze import Maze
 
@@ -12,6 +15,8 @@ def parser(content: str) -> dict[str, Any]:
         if not line.strip():
             continue
         key, value = (part.strip() for part in line.split("=", 1))
+        key = key.upper()
+
         if key in ("WIDTH", "HEIGHT"):
             try:
                 config_dict[key] = int(value)
@@ -20,7 +25,9 @@ def parser(content: str) -> dict[str, Any]:
         elif key in ("ENTRY", "EXIT"):
             config_dict[key] = tuple(int(coordinate) for coordinate in value.split(","))
         elif key == "PERFECT":
-            config_dict[key] = value == "True"
+            config_dict[key] = value.lower() == "true"
+        elif key == "SEED":
+            config_dict[key] = value or None
         else:
             config_dict[key] = value
 
@@ -52,9 +59,9 @@ def main() -> None:
     filename: str
 
     try:
-        if len(sys.argv) not in (2, 3):
-            raise ValueError("Invalid format! correct format: python3 a_maze_ing.py <config_filename> [seed]")
-        filename = input_checker(sys.argv[:2])
+        if len(sys.argv) != 2:
+            raise ValueError("Invalid format! correct format: python3 a_maze_ing.py <config_filename>")
+        filename = input_checker(sys.argv)
     except (ValueError, FileNotFoundError, PermissionError) as error:
         print(error, file=sys.stderr)
         return
@@ -62,7 +69,7 @@ def main() -> None:
     with open(filename, "r") as config_file_obj:
         config_dict = parser(config_file_obj.read())
 
-    seed = sys.argv[2] if len(sys.argv) == 3 else config_dict.get("SEED")
+    seed = config_dict.get("SEED")
 
     maze = Maze(
         width=config_dict["WIDTH"],
@@ -79,8 +86,7 @@ def main() -> None:
     print(f"seed used: {maze.seed!r}")
     print(maze.render_ascii(color_logo=True))
     maze.write_to_file()
-    print(f"\nAlso written to: {maze.output_filename}")
-
+    ops.menu()
 
 if __name__ == "__main__":
     main()

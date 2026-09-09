@@ -93,6 +93,7 @@ class Maze:
         total_w = glyph_w * 2 + 1
 
         if self.width < total_w + 2 or self.height < glyph_h + 2:
+            print("Size too small to print the '42'")
             return
 
         start_x = (self.width - total_w) // 2
