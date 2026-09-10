@@ -82,12 +82,12 @@ def main() -> None:
         config_dict = parser(config_file_obj.read())
 
     maze = build_maze(config_dict)
+    maze.generate()
     display_needed = True
 
     while True:
         if display_needed:
             os.system("clear")
-            maze.generate()
             print(f"seed used: {maze.seed!r}")
             print(maze.render_ascii(color_logo=True))
             maze.write_to_file()
@@ -96,6 +96,7 @@ def main() -> None:
         choice = ops.menu()
         if choice in ("1", "2", "3"):
             maze = build_maze(config_dict)
+            maze.generate()
             display_needed = True
         elif choice == "4":
             break
