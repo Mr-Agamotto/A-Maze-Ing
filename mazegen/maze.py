@@ -284,12 +284,77 @@ class Maze:
 
         self._apply_border()
 
-    def render_ascii(self, color_logo: bool = False) -> str:
-        red = "\033[31m"
-        reset = "\033[0m"
+    def shortest_path(self) -> set[tuple[int, int]]:
+        start = self.entry_coords
+        target = self.exit_coords
+        queue = [start]
+        previous: dict[tuple[int, int], tuple[int, int] | None] = {start: None}
 
-        def color_token(token: str, should_color: bool) -> str:
-            return red + token + reset if color_logo and should_color else token
+        while queue:
+            current = queue.pop(0)
+            if current == target:
+                break
+
+            x, y = current
+            for direction in (NORTH, EAST, SOUTH, WEST):
+                if self.cell(x, y).has_wall(direction):
+                    continue
+                neighbor = self.neighbor_coords(x, y, direction)
+                if neighbor not in previous:
+                    previous[neighbor] = current
+                    queue.append(neighbor)
+
+        if target not in previous:
+            return set()
+
+        path = set()
+        current: tuple[int, int] | None = target
+        while current is not None:
+            path.add(current)
+            current = previous[current]
+        return path
+
+    def shortest_path_directions(self) -> str:
+        start = self.entry_coords
+        target = self.exit_coords
+        queue = [start]
+        previous: dict[tuple[int, int], tuple[tuple[int, int], str] | None] = {start: None}
+
+        while queue:
+            current = queue.pop(0)
+            if current == target:
+                break
+
+            x, y = current
+            for direction in (NORTH, EAST, SOUTH, WEST):
+                if self.cell(x, y).has_wall(direction):
+                    continue
+                neighbor = self.neighbor_coords(x, y, direction)
+                if neighbor not in previous:
+                    previous[neighbor] = (current, direction)
+                    queue.append(neighbor)
+
+        if target not in previous:
+            return ""
+
+        directions = []
+        current = target
+        while current != start:
+            previous_cell, direction = previous[current]  # type: ignore[misc]
+            directions.append(direction)
+            current = previous_cell
+        directions.reverse()
+        return "".join(directions)
+
+    def render_ascii(self, color_logo: bool = False, show_path: bool = False) -> str:
+        green = "\033[32m"
+        red = "\033[31m"
+        blue = "\033[34m"
+        reset = "\033[0m"
+        path = self.shortest_path() if show_path else set()
+
+        def color_token(token: str, color: str) -> str:
+            return color + token + reset if color_logo else token
 
         lines = []
         for y in range(self.height):
@@ -302,28 +367,39 @@ class Maze:
                 corner_stamped = cell.is_stamped or above_stamped or left_stamped
                 if x > 0:
                     corner_stamped = corner_stamped or self.cell(x - 1, y - 1 if y > 0 else y).is_stamped
-                top += color_token("+", corner_stamped)
-                top += color_token("--" if cell.has_wall(NORTH) else "  ", cell.is_stamped or above_stamped)
+                corner_color = red if corner_stamped else green
+                wall_color = red if cell.is_stamped or above_stamped else green
+                top += color_token("+", corner_color)
+                top += color_token("--" if cell.has_wall(NORTH) else "  ", wall_color)
 
-                marker = "S" if (x, y) == self.entry_coords else "E" if (x, y) == self.exit_coords else " "
-                side += color_token(
-                    ("|" if cell.has_wall(WEST) else " ") + marker + " ",
-                    cell.is_stamped or left_stamped,
-                )
+                marker = " "
+                if (x, y) == self.entry_coords:
+                    marker = "S"
+                elif (x, y) == self.exit_coords:
+                    marker = "E"
+                elif (x, y) in path:
+                    marker = "■"
+                side += color_token("|" if cell.has_wall(WEST) else " ", red if cell.is_stamped or left_stamped else green)
+                side += color_token(marker, blue if marker == "■" else green)
+                side += " "
             last_above_stamped = y > 0 and self.cell(self.width - 1, y - 1).is_stamped
-            lines.append(top + color_token("+", self.cell(self.width - 1, y).is_stamped or last_above_stamped))
+            right_corner_color = red if self.cell(self.width - 1, y).is_stamped or last_above_stamped else green
+            lines.append(top + color_token("+", right_corner_color))
             last_cell = self.cell(self.width - 1, y)
-            east_wall = color_token(
-                "|" if last_cell.has_wall(EAST) else " ",
-                last_cell.is_stamped,
-            )
+            east_wall = color_token("|" if last_cell.has_wall(EAST) else " ", red if last_cell.is_stamped else green)
             lines.append(side + east_wall)
         bottom = "".join(
-            color_token("+", self.cell(x, self.height - 1).is_stamped or (x > 0 and self.cell(x - 1, self.height - 1).is_stamped))
-            + color_token("--" if self.cell(x, self.height - 1).has_wall(SOUTH) else "  ", self.cell(x, self.height - 1).is_stamped)
+            color_token(
+                "+",
+                red if self.cell(x, self.height - 1).is_stamped or (x > 0 and self.cell(x - 1, self.height - 1).is_stamped) else green,
+            )
+            + color_token(
+                "--" if self.cell(x, self.height - 1).has_wall(SOUTH) else "  ",
+                red if self.cell(x, self.height - 1).is_stamped else green,
+            )
             for x in range(self.width)
         )
-        lines.append(bottom + color_token("+", self.cell(self.width - 1, self.height - 1).is_stamped))
+        lines.append(bottom + color_token("+", red if self.cell(self.width - 1, self.height - 1).is_stamped else green))
         return "\n".join(lines)
 
     def _cell_hex_code(self, x: int, y: int) -> str:
@@ -347,11 +423,13 @@ class Maze:
 
         entry_line = f"{self.entry_coords[0]}, {self.entry_coords[1]}"
         exit_line = f"{self.exit_coords[0]}, {self.exit_coords[1]}"
+        path_line = self.shortest_path_directions()
 
         content = "\n".join(rows)
         content += "\n\n"
         content += f"{entry_line}\n"
         content += f"{exit_line}\n"
+        content += f"{path_line}\n"
 
         with open(self.output_filename, "w") as file_obj:
             file_obj.write(content)

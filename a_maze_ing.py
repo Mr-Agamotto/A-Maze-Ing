@@ -84,19 +84,26 @@ def main() -> None:
     maze = build_maze(config_dict)
     maze.generate()
     display_needed = True
+    show_path = False
 
     while True:
         if display_needed:
             os.system("clear")
             print(f"seed used: {maze.seed!r}")
-            print(maze.render_ascii(color_logo=True))
+            print(maze.render_ascii(color_logo=True, show_path=show_path))
             maze.write_to_file()
             display_needed = False
 
         choice = ops.menu()
-        if choice in ("1", "2", "3"):
+        if choice == "1":
             maze = build_maze(config_dict)
             maze.generate()
+            show_path = False
+            display_needed = True
+        elif choice == "2":
+            show_path = not show_path
+            display_needed = True
+        elif choice == "3":
             display_needed = True
         elif choice == "4":
             break
