@@ -24,10 +24,6 @@ class Maze:
             x, y = coords
             if not (0 <= x < width and 0 <= y < height):
                 raise ValueError(f"Coordinates {coords} are outside the maze bounds.")
-        if not self._is_on_border(entry_coords, width, height):
-            raise ValueError("ENTRY must be on the external border of the maze.")
-        if not self._is_on_border(exit_coords, width, height):
-            raise ValueError("EXIT must be on the external border of the maze.")
 
         self.width = width
         self.height = height
@@ -36,17 +32,13 @@ class Maze:
         self.output_filename = output_filename
         self.is_perfect_maze = is_perfect_maze
         self.seed = seed
+        self.logo_notice: str | None = None
 
         self.rng = random.Random(seed)
 
         self.grid: list[list[Cell]] = [
             [Cell(x, y) for y in range(height)] for x in range(width)
         ]
-
-    @staticmethod
-    def _is_on_border(coords: tuple[int, int], width: int, height: int) -> bool:
-        x, y = coords
-        return x in (0, width - 1) or y in (0, height - 1)
 
     def cell(self, x: int, y: int) -> Cell:
         return self.grid[x][y]
@@ -93,24 +85,26 @@ class Maze:
         total_w = glyph_w * 2 + 1
 
         if self.width < total_w + 2 or self.height < glyph_h + 2:
+            self.logo_notice = f"Warning: 42 logo not drawn (maze must be at least {total_w + 2}x{glyph_h + 2})."
             return
 
         start_x = (self.width - total_w) // 2
         start_y = (self.height - glyph_h) // 2
+        logo_cells = [
+            (x_offset + col_idx, row_idx)
+            for glyph, x_offset in ((self._GLYPH_4, 0), (self._GLYPH_2, glyph_w + 1))
+            for row_idx, row in enumerate(glyph)
+            for col_idx, bit in enumerate(row)
+            if bit
+        ]
+        endpoints = {self.entry_coords, self.exit_coords}
+        if any((start_x + dx, start_y + dy) in endpoints for dx, dy in logo_cells):
+            raise ValueError("ENTRY or EXIT overlaps the centered 42 logo; choose another cell.")
 
-        for glyph, x_offset in ((self._GLYPH_4, 0), (self._GLYPH_2, glyph_w + 1)):
-            for row_idx, row in enumerate(glyph):
-                for col_idx, bit in enumerate(row):
-                    if not bit:
-                        continue
-                    x, y = start_x + x_offset + col_idx, start_y + row_idx
-                    if not self.in_bounds(x, y):
-                        continue
-                    if (x, y) in (self.entry_coords, self.exit_coords):
-                        continue
-                    cell = self.cell(x, y)
-                    cell.is_stamped = True
-                    cell.walls = {NORTH: True, EAST: True, SOUTH: True, WEST: True}
+        for dx, dy in logo_cells:
+            cell = self.cell(start_x + dx, start_y + dy)
+            cell.is_stamped = True
+            cell.walls = {NORTH: True, EAST: True, SOUTH: True, WEST: True}
 
     def _edge_open(self, x1: int, y1: int, x2: int, y2: int) -> bool:
         direction = self._direction_between((x1, y1), (x2, y2))
@@ -346,11 +340,13 @@ class Maze:
         directions.reverse()
         return "".join(directions)
 
-    def render_ascii(self, color_logo: bool = False, show_path: bool = False) -> str:
+    def render_ascii(self, color_logo: bool = False, show_path: bool = False, wall_color_index: int = 0) -> str:
         green = "\033[32m"
         red = "\033[31m"
         blue = "\033[34m"
+        yellow = "\033[33m"
         reset = "\033[0m"
+        wall_color = (green, blue, yellow)[wall_color_index]
         path = self.shortest_path() if show_path else set()
 
         def color_token(token: str, color: str) -> str:
@@ -367,10 +363,10 @@ class Maze:
                 corner_stamped = cell.is_stamped or above_stamped or left_stamped
                 if x > 0:
                     corner_stamped = corner_stamped or self.cell(x - 1, y - 1 if y > 0 else y).is_stamped
-                corner_color = red if corner_stamped else green
-                wall_color = red if cell.is_stamped or above_stamped else green
+                corner_color = red if corner_stamped else wall_color
+                top_wall_color = red if cell.is_stamped or above_stamped else wall_color
                 top += color_token("+", corner_color)
-                top += color_token("--" if cell.has_wall(NORTH) else "  ", wall_color)
+                top += color_token("--" if cell.has_wall(NORTH) else "  ", top_wall_color)
 
                 marker = " "
                 if (x, y) == self.entry_coords:
@@ -379,27 +375,27 @@ class Maze:
                     marker = "E"
                 elif (x, y) in path:
                     marker = "■"
-                side += color_token("|" if cell.has_wall(WEST) else " ", red if cell.is_stamped or left_stamped else green)
+                side += color_token("|" if cell.has_wall(WEST) else " ", red if cell.is_stamped or left_stamped else wall_color)
                 side += color_token(marker, blue if marker == "■" else green)
                 side += " "
             last_above_stamped = y > 0 and self.cell(self.width - 1, y - 1).is_stamped
-            right_corner_color = red if self.cell(self.width - 1, y).is_stamped or last_above_stamped else green
+            right_corner_color = red if self.cell(self.width - 1, y).is_stamped or last_above_stamped else wall_color
             lines.append(top + color_token("+", right_corner_color))
             last_cell = self.cell(self.width - 1, y)
-            east_wall = color_token("|" if last_cell.has_wall(EAST) else " ", red if last_cell.is_stamped else green)
+            east_wall = color_token("|" if last_cell.has_wall(EAST) else " ", red if last_cell.is_stamped else wall_color)
             lines.append(side + east_wall)
         bottom = "".join(
             color_token(
                 "+",
-                red if self.cell(x, self.height - 1).is_stamped or (x > 0 and self.cell(x - 1, self.height - 1).is_stamped) else green,
+                red if self.cell(x, self.height - 1).is_stamped or (x > 0 and self.cell(x - 1, self.height - 1).is_stamped) else wall_color,
             )
             + color_token(
                 "--" if self.cell(x, self.height - 1).has_wall(SOUTH) else "  ",
-                red if self.cell(x, self.height - 1).is_stamped else green,
+                red if self.cell(x, self.height - 1).is_stamped else wall_color,
             )
             for x in range(self.width)
         )
-        lines.append(bottom + color_token("+", red if self.cell(self.width - 1, self.height - 1).is_stamped else green))
+        lines.append(bottom + color_token("+", red if self.cell(self.width - 1, self.height - 1).is_stamped else wall_color))
         return "\n".join(lines)
 
     def _cell_hex_code(self, x: int, y: int) -> str:
