@@ -340,7 +340,7 @@ class Maze:
         directions.reverse()
         return "".join(directions)
 
-    def render_ascii(self, color_logo: bool = False, show_path: bool = False, wall_color_index: int = 0) -> str:
+    def render_ascii(self, color_logo: bool = True, show_path: bool = True, wall_color_index: int = 0) -> str:
         green = "\033[32m"
         red = "\033[31m"
         blue = "\033[34m"
